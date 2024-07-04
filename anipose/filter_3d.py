@@ -33,28 +33,37 @@ def interpolate_data(vals):
 def filter_pose(config, fname, outname):
     data = pd.read_csv(fname)
 
+    size = config['filter3d']['medfilt_size']
+    size = size + 1 if size % 2 == 0 else size
+    error_thresh = config['filter3d']['error_thresh']
+
     cols = [x for x in data.columns if '_error' in x]
     bodyparts = [c.replace('_error', '') for c in cols]
 
+    ## TODO: configure these thresholds
     for bp in bodyparts:
         error = np.array(data[bp + '_error'])
         error[np.isnan(error)] = 100000
-        bad = error > config['filter3d']['offset_threshold']
+        bad = error > error_thresh
         for v in 'xyz':
             key = '{}_{}'.format(bp, v)
             values = np.array(data[key])
             values[bad] = np.nan
             values_intp = interpolate_data(values)
-            values_filt = medfilt_data(values_intp,
-                                       size=config['filter3d']['medfilt'])
+            values_filt = medfilt_data(values_intp, size)
             data[key] = values_filt
-        data[bp+'_error'] = 10 # FIXME: hack for plotting
+        # data[bp+'_error'] = 10 # FIXME: hack for plotting
         
     data.to_csv(outname, index=False)
 
 
 def process_session(config, session_path):
-    pipeline_pose = config['pipeline']['pose_3d']
+
+    if config['pipeline']['pose_3d_interpolated']:
+        pipeline_pose = config['pipeline']['pose_3d_interpolated']
+    else:
+        pipeline_pose = config['pipeline']['pose_3d']
+
     pipeline_pose_filter = config['pipeline']['pose_3d_filter']
 
     pose_folder = os.path.join(session_path, pipeline_pose)
