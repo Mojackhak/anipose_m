@@ -22,6 +22,7 @@ def rename_dlc_files(folder, base):
 def process_session(config, session_path):
     pipeline_videos_raw = config['pipeline']['videos_raw']
     pipeline_pose = config['pipeline']['pose_2d']
+    save_as_csv = config['save_as_csv']
     video_ext = config['video_extension']
 
     config_name = os.path.join(config['model_folder'], 'config.yaml')
@@ -61,8 +62,9 @@ def process_session(config, session_path):
                 print(video)
             with redirect_stdout(trap):
                 deeplabcut.analyze_videos(config_name, batch,
-                                          videotype=video_ext, save_as_csv=False,
-                                          destfolder=outdir, TFGPUinference=False)
+                                          videotype=video_ext, save_as_csv=save_as_csv,
+                                          destfolder=outdir, TFGPUinference=True,
+                                          allow_growth=True)
             for video in batch:
                 basename = os.path.basename(video)
                 basename, ext = os.path.splitext(basename)
