@@ -74,7 +74,7 @@ def train_mlp_classifier(X, y):
     
     mlp = MLPClassifier(hidden_layer_sizes=(hidden),
                         verbose=2, max_iter=2000,
-                        activation='tanh', tol=1e-5,
+                        activation='tanh', tol=1e-7,
                         learning_rate='adaptive', solver='adam',
                         early_stopping=True)
     mlp.fit(X, y)
