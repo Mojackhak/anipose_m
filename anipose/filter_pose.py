@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#%%!/usr/bin/env python3
 
 from tqdm import tqdm, trange
 import os.path, os
@@ -13,7 +13,10 @@ from scipy.spatial import cKDTree
 from scipy.special import logsumexp
 from collections import Counter
 from multiprocessing import cpu_count
-from multiprocessing import Pool, get_context
+from multiprocessing import get_context
+from joblib import Parallel, delayed
+
+# from multiprocess import cpu_count, pool, get_context
 import pickle
 
 from .common import make_process_fun, natural_keys
@@ -23,7 +26,7 @@ def nan_helper(y):
     return np.isnan(y), lambda z: z.nonzero()[0]
 
 
-def remove_dups(pts, thres=7):
+def remove_dups(pts, thres=3):
     tindex = np.repeat(np.arange(pts.shape[0])[:, None], pts.shape[1], axis=1)*100
     pts_ix = np.dstack([pts, tindex])
     tree = cKDTree(pts_ix.reshape(-1, 3))
@@ -41,11 +44,12 @@ def remove_dups(pts, thres=7):
 
     return pts_out
 
-def viterbi_path(points, scores, n_back=3, thres_dist=30):
+def viterbi_path(points, scores, n_back=3, thres_dist=30, scores_thres=0.01):
+
     n_frames = points.shape[0]
 
-    points_nans = remove_dups(points, thres=5)
-    # points_nans[scores < 0.01] = np.nan
+    points_nans = remove_dups(points, thres=3)
+    points_nans[scores < scores_thres] = np.nan
 
     num_points = np.sum(~np.isnan(points_nans[:, :, 0]), axis=1)
     num_max = np.max(num_points)
@@ -117,9 +121,9 @@ def viterbi_path(points, scores, n_back=3, thres_dist=30):
 
 
 def viterbi_path_wrapper(args):
-    jix, pts, scs, max_offset, thres_dist = args
-    pts_new, scs_new = viterbi_path(pts, scs, max_offset, thres_dist)
-    return jix, pts_new, scs_new
+    jix, pts, scs, max_offset, thres_dist, scores_thres = args
+    pts_new, scs_new = viterbi_path(pts, scs, max_offset, thres_dist, scores_thres)
+    return [jix, pts_new, scs_new]
 
 
 def load_pose_2d(fname):
@@ -145,12 +149,13 @@ def load_pose_2d(fname):
     return test, metadata
 
 def filter_pose_viterbi(config, all_points, bodyparts):
+
     n_frames, n_joints, n_possible, _ = all_points.shape
 
     points_full = all_points[:, :, :, :2]
     scores_full = all_points[:, :, :, 2]
 
-    points_full[scores_full < config['filter']['score_threshold']] = np.nan
+    # points_full[scores_full < config['filter']['score_threshold']] = np.nan
 
     points = np.full((n_frames, n_joints, 2), np.nan, dtype='float64')
     scores = np.empty((n_frames, n_joints), dtype='float64')
@@ -160,29 +165,67 @@ def filter_pose_viterbi(config, all_points, bodyparts):
         n_proc = config['filter'].get('n_proc', n_proc_default)
     else:
         n_proc = 1
+
     ctx = get_context('spawn')
     pool = ctx.Pool(n_proc)
 
     max_offset = config['filter']['n_back']
     thres_dist = config['filter']['offset_threshold']
+    scores_thres = config['filter']['viterbi_score_threshold']
 
     iterable = [ (jix, points_full[:, jix, :], scores_full[:, jix],
-                  max_offset, thres_dist)
+                  max_offset, thres_dist, scores_thres)
                  for jix in range(n_joints) ]
 
-    results = pool.imap_unordered(viterbi_path_wrapper, iterable)
+    # # Create a trange for the number of joints
+    # progress_bar = trange(n_joints, desc="Processing", ncols=70)
+    # results = pool.imap_unordered(viterbi_path_wrapper, iterable)
 
-    for jix, pts_new, scs_new in tqdm(results, ncols=70):
+    # for result in results:
+
+    #     jix, pts_new, scs_new = result
+    #     points[:, jix] = pts_new
+    #     scores[:, jix] = scs_new
+    #     progress_bar.update(1)  # Manually update the progress bar
+
+    # progress_bar.close()  # Ensure to close the progress bar
+
+    # results = pool.imap_unordered(viterbi_path_wrapper, iterable)
+
+    # for jix, pts_new, scs_new in tqdm(results, ncols=70):
+    #     points[:, jix] = pts_new
+    #     scores[:, jix] = scs_new
+
+    # pool.close()
+    # pool.join()
+
+    # Execute the parallel processing
+    results = Parallel(n_jobs=n_proc)(
+        delayed(viterbi_path_wrapper)(iterable0) for iterable0 in iterable)
+
+    for result in results:
+        jix = result[0]
+        pts_new = result[1]
+        scs_new = result[2]
         points[:, jix] = pts_new
         scores[:, jix] = scs_new
 
-    pool.close()
-    pool.join()
+
+    # def viterbi_path_wrapper(args):
+    #     jix, pts, scs, max_offset, thres_dist, scores_thres = args
+    #     pts_new, scs_new = viterbi_path(pts, scs, max_offset, thres_dist, scores_thres)
+    #     return jix, pts_new, scs_new
+
+    # # Collect results
+    # for jix, pts_new, scs_new in results:
+    #     points[:, jix] = pts_new
+    #     scores[:, jix] = scs_new
 
     return points, scores
 
 
-def write_pose_2d(all_points, metadata, outname=None):
+
+def write_pose_2d(all_points, metadata, outname=None, save_as_csv=False):
     points = all_points[:, :, :2]
     scores = all_points[:, :, 2]
 
@@ -196,15 +239,17 @@ def write_pose_2d(all_points, metadata, outname=None):
 
     dout = pd.DataFrame(columns=columns, index=index)
 
-    dout.loc[:, (scorer, bodyparts, 'x')] = points[:, :, 0]
-    dout.loc[:, (scorer, bodyparts, 'y')] = points[:, :, 1]
-    dout.loc[:, (scorer, bodyparts, 'likelihood')] = scores
+    dout = dout.astype(np.float64)
 
-    dout = dout.infer_objects()  # need this to have floats not objects in newer pandas
+    dout.loc[:, (scorer, bodyparts, 'x')] = points[:, :, 0].astype(np.float64)
+    dout.loc[:, (scorer, bodyparts, 'y')] = points[:, :, 1].astype(np.float64)
+    dout.loc[:, (scorer, bodyparts, 'likelihood')] = scores.astype(np.float64)
 
     if outname is not None:
         dout.to_hdf(outname, 'df_with_missing', format='table', mode='w')
-
+        if save_as_csv:
+            dout.to_csv(outname.replace('.h5', '.csv'), index=False)
+            
     return dout
 
 
@@ -303,7 +348,7 @@ def filter_pose_autoencoder_points(config, all_points, bodyparts):
     scores_test = all_points[:, :, 0, 2]
     points_test[scores_test < 0.4] = np.nan
 
-    fname_model = config['filter']['autoencoder_points_path']
+    fname_model = config['filter']['autoencoder_path']
     with open(fname_model, 'rb') as f:
         d = pickle.load(f)
     mlp = d['mlp']
@@ -354,6 +399,7 @@ def process_session(config, session_path):
     pipeline_pose = config['pipeline']['pose_2d']
     pipeline_pose_filter = config['pipeline']['pose_2d_filter']
     filter_types = config['filter']['type']
+    save_as_csv = config['save_as_csv']
     if not isinstance(filter_types, list):
         filter_types = [filter_types]
 
@@ -387,7 +433,9 @@ def process_session(config, session_path):
             points, scores = filter_fun(config, all_points, metadata['bodyparts'])
             all_points = wrap_points(points, scores)
 
-        write_pose_2d(all_points[:, :, 0], metadata, outpath)
+        write_pose_2d(all_points[:, :, 0], metadata, outpath, save_as_csv)
 
-
+# %%
 filter_pose_all = make_process_fun(process_session)
+
+# %%
