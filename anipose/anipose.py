@@ -10,6 +10,7 @@ pass_config = click.make_pass_decorator(dict)
 DEFAULT_CONFIG = {
     'video_extension': 'avi',
     'converted_video_speed': 1,
+    'save_as_csv': False,
     'calibration': {
         'animal_calibration': False,
         'calibration_init': None,
@@ -37,6 +38,7 @@ DEFAULT_CONFIG = {
         'pose_2d_filter': 'pose-2d-filtered',
         'pose_2d_projected': 'pose-2d-proj',
         'pose_3d': 'pose-3d',
+        'pose_3d_interpolated': 'pose-3d-interpolated',
         'pose_3d_filter': 'pose-3d-filtered',
         'videos_labeled_2d': 'videos-labeled',
         'videos_labeled_2d_filter': 'videos-labeled-filtered',
@@ -48,7 +50,7 @@ DEFAULT_CONFIG = {
         'summaries': 'summaries',
         'videos_combined': 'videos-combined',
         'videos_compare': 'videos-compare',
-        'videos_2d_projected': 'videos-2d-proj',
+        'videos_2d_projected': 'videos-2d-proj'
     },
     'filter': {
         'enabled': False,
@@ -56,14 +58,15 @@ DEFAULT_CONFIG = {
         'medfilt': 13,
         'offset_threshold': 25,
         'score_threshold': 0.05,
+        'viterbi_score_threshold': 0.01,
         'spline': True,
         'n_back': 5,
         'multiprocessing': False
     },
     'filter3d': {
         'enabled': False,
-        'medfilt': 17,
-        'offset_threshold': 15
+        'medfilt_size': 15,
+        'error_thresh': 99
     }
 }
 
@@ -213,17 +216,15 @@ def summarize_errors(config):
 @click.option('--nframes', default=200, type=int, show_default=True)
 @click.option('--mode', default='bad', type=str, show_default=True)
 @click.option('--no-pred', is_flag=True)
-@click.option('--scorer', default=None, type=str)
-@click.option('--name', default=None, type=str)
 @pass_config
-def extract_frames(config, nframes=200, mode='bad', no_pred=False, scorer=None, name=None):
+def extract_frames(config, nframes=200, mode='bad', no_pred=False):
     from .extract_frames import extract_frames_picked, extract_frames_random
     click.echo('Extracting frames...')
     if no_pred:
         mode = 'random'
-        extract_frames_random(config, nframes, name=name)
+        extract_frames_random(config, nframes)
     else:
-        extract_frames_picked(config, mode, nframes, scorer=scorer, name=name)
+        extract_frames_picked(config, mode, nframes)
 
 
 @cli.command()
