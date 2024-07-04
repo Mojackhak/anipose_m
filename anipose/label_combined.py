@@ -417,11 +417,12 @@ def visualize_combined(config, pose_fname, cgroup, offsets_dict,
     writer.release()
 
 def process_session(config, session_path):
-    # filtered = config['filter']['enabled']
-    # if filtered:
-    #     pipeline_videos_labeled_2d = config['pipeline']['videos_labeled_2d_filter']
-    # else:
-    #     pipeline_videos_labeled_2d = config['pipeline']['videos_labeled_2d']
+    
+    filtered = config['filter']['enabled']
+    if filtered:
+        pipeline_videos_labeled_2d = config['pipeline']['videos_labeled_2d_filter']
+    else:
+        pipeline_videos_labeled_2d = config['pipeline']['videos_labeled_2d']
     pipeline_videos_labeled_3d = config['pipeline']['videos_labeled_3d']
     pipeline_videos_raw = config['pipeline']['videos_raw']
     # pipeline_angles = config['pipeline']['angles']
@@ -434,8 +435,11 @@ def process_session(config, session_path):
 
     video_ext = config['video_extension']
 
+    # vid_fnames_2d = glob(os.path.join(session_path,
+    #                                   pipeline_videos_raw, "*."+video_ext))
+
     vid_fnames_2d = glob(os.path.join(session_path,
-                                      pipeline_videos_raw, "*."+video_ext))
+                                      pipeline_videos_labeled_2d, "*."+video_ext))
 
     # vid_fnames_2d = glob(os.path.join(session_path,
     #                                   pipeline_videos_labeled_2d, "*.avi"))
