@@ -95,10 +95,11 @@ def visualize_labels(config, labels_fname, vid_fname, outname):
     cmap = get_cmap('tab10')
 
     points = [(dlabs[bp]['x'], dlabs[bp]['y']) for bp in bodyparts]
-    points = np.array(points)
+    points = np.array(points, dtype=np.float64)
 
     scores = [dlabs[bp]['likelihood'] for bp in bodyparts]
-    scores = np.array(scores)
+    scores = np.array(scores, dtype=np.float64)
+
     scores[np.isnan(scores)] = 0
     scores[np.isnan(points[:, 0])] = 0
 
