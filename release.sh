@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-rm -rv dist build *.egg-info
-python setup.py sdist bdist_wheel
-# python3 setup.py bdist_wheel
-twine upload dist/*
+rm -rf dist build *.egg-info
+python -m pip install --upgrade build twine
+python -m build
+python -m twine check dist/*
+echo "Artifacts are ready in dist/. Publish through the tag-driven GitHub Actions workflow."

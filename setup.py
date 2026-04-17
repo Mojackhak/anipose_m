@@ -5,13 +5,17 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="anipose",
-    version="1.1.25",
+    version="1.1.25.post1",
     author="Lili Karashchuk",
     author_email="krchtchk@gmail.com",
-    description="Framework for scalable DeepLabCut based analysis including 3D tracking",
+    description="Mojackhak fork of Anipose for scalable DeepLabCut-based 3D tracking analysis",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/lambdaloop/anipose",
+    url="https://github.com/Mojackhak/anipose",
+    project_urls={
+        "Repository": "https://github.com/Mojackhak/anipose",
+        "Upstream": "https://github.com/lambdaloop/anipose",
+    },
     packages=setuptools.find_packages(),
     include_package_data=True,
     package_data={
@@ -30,7 +34,7 @@ setuptools.setup(
     },
     install_requires=[
         # 'deeplabcut>=2.0.4.1',
-        'aniposelib>=0.7.1',
+        'aniposelib>=0.7.12',
         'opencv-contrib-python',
         'toml',
         'numpy',
@@ -43,6 +47,6 @@ setuptools.setup(
     ],
     extras_require={
         'viz':  ["mayavi"],
-        'dlc': ['deeplabcut>=2.0.4.1']
+        'dlc': ['deeplabcut>=3.0.0rc61']
     },
 )
